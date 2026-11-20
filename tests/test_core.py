@@ -46,10 +46,65 @@ def test_milestone_1():
 
 
 
-# Milestone 2: Implement the byte-pair tokenizer and generate token embeddings from the corpus.
-@pytest.mark.skip(reason="remove this line when you start milestone 2")
+# Milestone 2: BPE tokenizer and token embeddings
 def test_milestone_2():
-    raise NotImplementedError("write the test for milestone 2")
+    import torch
+    from app.core import milestone_1, milestone_2
+
+    model = milestone_2(
+        vocab_size=300,
+        embedding_dim=32
+    )
+
+    # Verify tokenizer and embedding structure
+    assert isinstance(model, dict)
+
+    assert "vocab" in model
+    assert "merges" in model
+    assert "encode" in model
+    assert "decode" in model
+    assert "embedding" in model
+    assert "embedded_tokens" in model
+
+    # Verify vocabulary size
+    assert 256 <= model["vocab_size"] <= 300
+
+    # Verify that BPE learned at least one merge
+    assert len(model["merges"]) > 0
+
+    # Verify encoding and decoding
+    sample = "machine learning"
+
+    encoded = model["encode"](sample)
+    decoded = model["decode"](encoded)
+
+    assert isinstance(encoded, list)
+    assert len(encoded) > 0
+    assert decoded == sample
+
+    # Verify UTF-8 round trip
+    unicode_sample = "AI tutor café"
+    assert model["decode"](
+        model["encode"](unicode_sample)
+    ) == unicode_sample
+
+    # Verify corpus round trip
+    corpus = milestone_1()["corpus"]
+    assert model["decode"](model["token_ids"]) == corpus
+
+    # Verify embedding dimensions
+    embeddings = model["embedded_tokens"]
+
+    assert isinstance(embeddings, torch.Tensor)
+    assert embeddings.ndim == 2
+    assert embeddings.shape[1] == 32
+    assert embeddings.shape[0] == len(
+        model["token_ids"]
+    )
+
+    # Verify embedding parameters are trainable
+    assert model["embedding"].weight.requires_grad
+
 
 
 # Milestone 3: Build the causal self-attention mechanism and assemble the transformer block.
