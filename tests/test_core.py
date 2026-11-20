@@ -4,10 +4,46 @@ They start skipped. Remove the `skip` line as you work on each milestone.
 """
 import pytest
 
-# Milestone 1: Prepare a small corpus of educational text data (e.g., sample lecture notes).
-@pytest.mark.skip(reason="remove this line when you start milestone 1")
+
+# Milestone 1: Prepare educational text corpus
 def test_milestone_1():
-    raise NotImplementedError("write the test for milestone 1")
+    from app.core import milestone_1
+
+    data = milestone_1()
+
+    # Verify the returned data structure
+    assert isinstance(data, dict)
+
+    assert "notes" in data
+    assert "corpus" in data
+    assert "num_documents" in data
+    assert "num_words" in data
+
+    # Verify that 30 lecture notes are present
+    assert data["num_documents"] == 30
+
+    # Verify that the corpus is not empty
+    assert len(data["corpus"]) > 0
+    assert data["num_words"] > 100
+
+    # Verify each note is cleaned
+    for note in data["notes"]:
+        assert isinstance(note, str)
+        assert len(note) > 0
+        assert note == note.lower()
+        assert "  " not in note
+
+    # Verify important educational concepts
+    corpus = data["corpus"]
+
+    assert "machine learning" in corpus
+    assert "neural networks" in corpus
+    assert "transformers" in corpus
+    assert "tokenization" in corpus
+
+    # Verify word count
+    assert data["num_words"] == len(corpus.split())
+
 
 
 # Milestone 2: Implement the byte-pair tokenizer and generate token embeddings from the corpus.
