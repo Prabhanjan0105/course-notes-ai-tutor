@@ -685,7 +685,33 @@ def milestone_5(prompt="machine learning is",
 
 
 
-# --- Milestone 6: Create a simple CLI interface for interacting with the AI tutor.
-# Hint: Command-line interface (CLI) development
-def milestone_6():  # TODO(milestone 6)
-    raise NotImplementedError("TODO(milestone 6)")
+
+def milestone_6(prompt="machine learning is",
+                max_new_tokens=30,
+                temperature=0.8,
+                checkpoint_path="checkpoints/tiny_gpt.pt",
+                train_if_missing=True,
+                epochs=30):
+    """
+    CLI-facing interface for the Course Notes AI Tutor.
+
+    Uses the text generation implementation
+    developed in Milestone 5.
+    """
+    result = milestone_5(
+        prompt=prompt,
+        max_new_tokens=max_new_tokens,
+        temperature=temperature,
+        checkpoint_path=checkpoint_path,
+        train_if_missing=train_if_missing,
+        epochs=epochs
+    )
+
+    return {
+        "prompt": result["prompt"],
+        "response": result["generated_text"],
+        "token_ids": result["generated_token_ids"],
+        "checkpoint_path": result["checkpoint_path"],
+        "temperature": result["temperature"]
+    }
+

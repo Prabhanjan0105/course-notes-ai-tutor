@@ -334,8 +334,85 @@ def test_milestone_5(tmp_path):
         )
 
 
-# Milestone 6: Create a simple CLI interface for interacting with the AI tutor.
-@pytest.mark.skip(reason="remove this line when you start milestone 6")
-def test_milestone_6():
-    raise NotImplementedError("write the test for milestone 6")
+# Milestone 6: Interactive CLI
+def test_milestone_6(tmp_path, monkeypatch, capsys):
+    from app import cli
+    from app import core
+
+    checkpoint = tmp_path / "test_gpt.pt"
+
+    # Test the real Milestone 6 wrapper
+    result = core.milestone_6(
+        prompt="machine learning",
+        max_new_tokens=3,
+        checkpoint_path=str(checkpoint),
+        epochs=2
+    )
+
+    assert isinstance(result, dict)
+    assert result["prompt"] == "machine learning"
+    assert result["response"].startswith(
+        "machine learning"
+    )
+    assert checkpoint.exists()
+
+    # Test hello command
+    cli.main(["hello"])
+
+    output = capsys.readouterr().out
+    assert "ready" in output.lower()
+
+    # Test info command
+    cli.main(["info"])
+
+    output = capsys.readouterr().out
+    assert "PyTorch" in output
+    assert "Transformer" in output
+
+    # Mock generation to test CLI separately
+    def fake_generate_response(**kwargs):
+        return {
+            "prompt": kwargs["prompt"],
+            "response": kwargs["prompt"] + " generated text",
+            "token_ids": [1, 2, 3],
+            "checkpoint_path": str(checkpoint),
+            "temperature": kwargs["temperature"]
+        }
+
+    monkeypatch.setattr(
+        cli,
+        "generate_response",
+        fake_generate_response
+    )
+
+    # Test single-prompt generation
+    cli.main([
+        "generate",
+        "--prompt", "neural networks",
+        "--max-tokens", "5"
+    ])
+
+    output = capsys.readouterr().out
+    assert "neural networks generated text" in output
+
+    # Test interactive mode
+    inputs = iter([
+        "deep learning",
+        "exit"
+    ])
+
+    monkeypatch.setattr(
+        "builtins.input",
+        lambda _: next(inputs)
+    )
+
+    cli.main([
+        "interactive",
+        "--max-tokens", "5"
+    ])
+
+    output = capsys.readouterr().out
+
+    assert "deep learning generated text" in output
+    assert "Goodbye!" in output
 
