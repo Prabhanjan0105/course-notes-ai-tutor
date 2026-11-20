@@ -192,10 +192,149 @@ def milestone_2(vocab_size=300, embedding_dim=32):
 
 
 
-# --- Milestone 3: Build the causal self-attention mechanism and assemble the transformer block.
-# Hint: Causal self-attention and transformer blocks
-def milestone_3():  # TODO(milestone 3)
-    raise NotImplementedError("TODO(milestone 3)")
+
+def milestone_3(embedding_dim=32, num_heads=4,
+                block_size=64, dropout=0.0):
+    """
+    Build causal multi-head self-attention
+    and a GPT-style transformer block.
+    """
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+
+    if embedding_dim <= 0 or num_heads <= 0:
+        raise ValueError(
+            "Embedding dimension and heads must be positive"
+        )
+
+    if embedding_dim % num_heads != 0:
+        raise ValueError(
+            "embedding_dim must be divisible by num_heads"
+        )
+
+    if block_size < 1:
+        raise ValueError("block_size must be positive")
+
+    if not 0 <= dropout < 1:
+        raise ValueError("dropout must be between 0 and 1")
+
+    class CausalSelfAttention(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+            self.num_heads = num_heads
+            self.head_dim = embedding_dim // num_heads
+
+            self.qkv = nn.Linear(
+                embedding_dim, 3 * embedding_dim
+            )
+
+            self.proj = nn.Linear(
+                embedding_dim, embedding_dim
+            )
+
+            self.attn_dropout = nn.Dropout(dropout)
+            self.resid_dropout = nn.Dropout(dropout)
+
+            mask = torch.tril(
+                torch.ones(block_size, block_size)
+            )
+
+            self.register_buffer(
+                "mask",
+                mask.view(1, 1, block_size, block_size)
+            )
+
+        def forward(self, x):
+            B, T, C = x.shape
+
+            if T > block_size:
+                raise ValueError(
+                    "Sequence exceeds block_size"
+                )
+
+            qkv = self.qkv(x)
+
+            q, k, v = qkv.chunk(3, dim=-1)
+
+            q = q.view(
+                B, T, self.num_heads, self.head_dim
+            ).transpose(1, 2)
+
+            k = k.view(
+                B, T, self.num_heads, self.head_dim
+            ).transpose(1, 2)
+
+            v = v.view(
+                B, T, self.num_heads, self.head_dim
+            ).transpose(1, 2)
+
+            # Scaled dot-product attention
+            scores = (
+                q @ k.transpose(-2, -1)
+            ) / (self.head_dim ** 0.5)
+
+            # Prevent attention to future tokens
+            scores = scores.masked_fill(
+                self.mask[:, :, :T, :T] == 0,
+                float("-inf")
+            )
+
+            weights = F.softmax(scores, dim=-1)
+            weights = self.attn_dropout(weights)
+
+            output = weights @ v
+
+            output = output.transpose(
+                1, 2
+            ).contiguous().view(B, T, C)
+
+            return self.resid_dropout(
+                self.proj(output)
+            )
+
+    class TransformerBlock(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+            self.ln1 = nn.LayerNorm(embedding_dim)
+            self.attention = CausalSelfAttention()
+
+            self.ln2 = nn.LayerNorm(embedding_dim)
+
+            self.feed_forward = nn.Sequential(
+                nn.Linear(
+                    embedding_dim,
+                    4 * embedding_dim
+                ),
+                nn.GELU(),
+                nn.Linear(
+                    4 * embedding_dim,
+                    embedding_dim
+                ),
+                nn.Dropout(dropout)
+            )
+
+        def forward(self, x):
+            # Attention with residual connection
+            x = x + self.attention(self.ln1(x))
+
+            # Feed-forward with residual connection
+            x = x + self.feed_forward(self.ln2(x))
+
+            return x
+
+    transformer = TransformerBlock()
+
+    return {
+        "transformer": transformer,
+        "attention": transformer.attention,
+        "embedding_dim": embedding_dim,
+        "num_heads": num_heads,
+        "block_size": block_size
+    }
+
 
 
 # --- Milestone 4: Set up the training loop and train the GPT model on the prepared text.

@@ -107,10 +107,96 @@ def test_milestone_2():
 
 
 
-# Milestone 3: Build the causal self-attention mechanism and assemble the transformer block.
-@pytest.mark.skip(reason="remove this line when you start milestone 3")
+
+# Milestone 3: Causal self-attention and transformer
 def test_milestone_3():
-    raise NotImplementedError("write the test for milestone 3")
+    import torch
+    import pytest
+    from app.core import milestone_2, milestone_3
+
+    torch.manual_seed(42)
+
+    model = milestone_3(
+        embedding_dim=32,
+        num_heads=4,
+        block_size=64
+    )
+
+    transformer = model["transformer"]
+    attention = model["attention"]
+
+    # Verify model configuration
+    assert model["embedding_dim"] == 32
+    assert model["num_heads"] == 4
+    assert model["block_size"] == 64
+
+    # Verify transformer output shape
+    x = torch.randn(2, 10, 32)
+    output = transformer(x)
+
+    assert output.shape == (2, 10, 32)
+    assert torch.isfinite(output).all()
+
+    # Verify attention output shape
+    attention_output = attention(x)
+
+    assert attention_output.shape == x.shape
+
+    # Verify causal masking
+    transformer.eval()
+
+    original = torch.randn(1, 8, 32)
+    modified = original.clone()
+
+    # Change only future tokens
+    modified[:, 4:, :] += 100.0
+
+    with torch.no_grad():
+        out1 = transformer(original)
+        out2 = transformer(modified)
+
+    # Earlier positions must remain unchanged
+    assert torch.allclose(
+        out1[:, :4, :],
+        out2[:, :4, :],
+        atol=1e-5
+    )
+
+    # Verify gradients flow through the model
+    transformer.train()
+
+    x = torch.randn(2, 10, 32)
+    loss = transformer(x).sum()
+    loss.backward()
+
+    assert any(
+        p.grad is not None
+        for p in transformer.parameters()
+    )
+
+    # Verify compatibility with Milestone 2
+    tokenizer = milestone_2(
+        vocab_size=300,
+        embedding_dim=32
+    )
+
+    tokens = tokenizer["token_ids"][:10]
+    token_tensor = torch.tensor(
+        tokens, dtype=torch.long
+    ).unsqueeze(0)
+
+    embeddings = tokenizer["embedding"](token_tensor)
+    result = transformer(embeddings)
+
+    assert result.shape == (1, 10, 32)
+
+    # Invalid configurations should fail
+    with pytest.raises(ValueError):
+        milestone_3(embedding_dim=30, num_heads=4)
+
+    with pytest.raises(ValueError):
+        milestone_3(block_size=0)
+
 
 
 # Milestone 4: Set up the training loop and train the GPT model on the prepared text.
