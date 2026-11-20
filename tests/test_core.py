@@ -199,10 +199,78 @@ def test_milestone_3():
 
 
 
-# Milestone 4: Set up the training loop and train the GPT model on the prepared text.
-@pytest.mark.skip(reason="remove this line when you start milestone 4")
+
+# Milestone 4: Train GPT using gradient descent
 def test_milestone_4():
-    raise NotImplementedError("write the test for milestone 4")
+    import torch
+    import pytest
+    from app.core import milestone_4
+
+    # Train a small model for testing
+    result = milestone_4(
+        epochs=5,
+        learning_rate=0.003,
+        block_size=16,
+        embedding_dim=32,
+        num_heads=4,
+        batch_size=4
+    )
+
+    # Verify returned training information
+    assert isinstance(result, dict)
+    assert "model" in result
+    assert "tokenizer" in result
+    assert "loss_history" in result
+    assert "initial_loss" in result
+    assert "final_loss" in result
+
+    # Verify training steps
+    losses = result["loss_history"]
+
+    assert len(losses) == 5
+    assert all(
+        isinstance(loss, float)
+        for loss in losses
+    )
+
+    # Verify losses are finite and positive
+    assert all(
+        0 < loss < float("inf")
+        for loss in losses
+    )
+
+    # Verify model forward pass
+    model = result["model"]
+    model.eval()
+
+    token_ids = result["tokenizer"]["token_ids"][:8]
+
+    x = torch.tensor(
+        [token_ids], dtype=torch.long
+    )
+
+    with torch.no_grad():
+        logits, loss = model(x, x)
+
+    assert logits.shape == (
+        1, 8, result["vocab_size"]
+    )
+
+    assert loss is not None
+    assert torch.isfinite(loss)
+
+    # Verify model has trainable parameters
+    assert sum(
+        p.numel() for p in model.parameters()
+    ) > 0
+
+    # Invalid training configuration
+    with pytest.raises(ValueError):
+        milestone_4(epochs=0)
+
+    with pytest.raises(ValueError):
+        milestone_4(learning_rate=-0.1)
+
 
 
 # Milestone 5: Implement text generation, allowing users to input a prompt and get completions.

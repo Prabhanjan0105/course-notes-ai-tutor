@@ -337,10 +337,194 @@ def milestone_3(embedding_dim=32, num_heads=4,
 
 
 
-# --- Milestone 4: Set up the training loop and train the GPT model on the prepared text.
-# Hint: Training loop and gradient descent
-def milestone_4():  # TODO(milestone 4)
-    raise NotImplementedError("TODO(milestone 4)")
+
+def milestone_4(epochs=30, learning_rate=0.003,
+                block_size=16, embedding_dim=32,
+                num_heads=4, batch_size=8):
+    """
+    Build and train a small GPT-style model
+    on the educational text corpus.
+    """
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+
+    if not isinstance(epochs, int) or epochs < 1:
+        raise ValueError("epochs must be positive")
+
+    if learning_rate <= 0:
+        raise ValueError("learning_rate must be positive")
+
+    if not isinstance(block_size, int) or block_size < 1:
+        raise ValueError("block_size must be positive")
+
+    if not isinstance(batch_size, int) or batch_size < 1:
+        raise ValueError("batch_size must be positive")
+
+    torch.manual_seed(42)
+
+    # Milestone 2: Train BPE tokenizer
+    tokenizer = milestone_2(
+        vocab_size=300,
+        embedding_dim=embedding_dim
+    )
+
+    vocab_size = tokenizer["vocab_size"]
+
+    data = torch.tensor(
+        tokenizer["token_ids"],
+        dtype=torch.long
+    )
+
+    if len(data) <= block_size:
+        raise ValueError(
+            "Corpus must be longer than block_size"
+        )
+
+    # Milestone 3: Transformer architecture
+    class TinyGPT(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+            # Reuse token embeddings from Milestone 2
+            self.token_embedding = tokenizer["embedding"]
+
+            self.position_embedding = nn.Embedding(
+                block_size, embedding_dim
+            )
+
+            self.blocks = nn.Sequential(
+                milestone_3(
+                    embedding_dim=embedding_dim,
+                    num_heads=num_heads,
+                    block_size=block_size
+                )["transformer"],
+                milestone_3(
+                    embedding_dim=embedding_dim,
+                    num_heads=num_heads,
+                    block_size=block_size
+                )["transformer"]
+            )
+
+            self.ln_final = nn.LayerNorm(
+                embedding_dim
+            )
+
+            self.lm_head = nn.Linear(
+                embedding_dim,
+                vocab_size
+            )
+
+        def forward(self, idx, targets=None):
+            B, T = idx.shape
+
+            if T > block_size:
+                raise ValueError(
+                    "Input exceeds block_size"
+                )
+
+            positions = torch.arange(
+                T, device=idx.device
+            )
+
+            tok_emb = self.token_embedding(idx)
+            pos_emb = self.position_embedding(
+                positions
+            )
+
+            x = tok_emb + pos_emb
+            x = self.blocks(x)
+            x = self.ln_final(x)
+
+            logits = self.lm_head(x)
+
+            loss = None
+
+            if targets is not None:
+                loss = F.cross_entropy(
+                    logits.reshape(-1, vocab_size),
+                    targets.reshape(-1)
+                )
+
+            return logits, loss
+
+    model = TinyGPT()
+
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=learning_rate
+    )
+
+    def get_batch():
+        # Sample training windows from corpus
+        starts = torch.randint(
+            0,
+            len(data) - block_size,
+            (batch_size,)
+        )
+
+        x = torch.stack([
+            data[i:i + block_size]
+            for i in starts.tolist()
+        ])
+
+        y = torch.stack([
+            data[i + 1:i + block_size + 1]
+            for i in starts.tolist()
+        ])
+
+        return x, y
+
+    loss_history = []
+
+    print("\nStarting GPT model training...")
+    print("-" * 45)
+
+    model.train()
+
+    for epoch in range(epochs):
+        x, y = get_batch()
+
+        logits, loss = model(x, y)
+
+        optimizer.zero_grad()
+        loss.backward()
+
+        torch.nn.utils.clip_grad_norm_(
+            model.parameters(), max_norm=1.0
+        )
+
+        optimizer.step()
+
+        loss_value = loss.item()
+        loss_history.append(loss_value)
+
+        if (
+            epoch == 0
+            or (epoch + 1) % 5 == 0
+            or epoch == epochs - 1
+        ):
+            print(
+                f"Step {epoch + 1}/{epochs} "
+                f"| Loss: {loss_value:.4f}"
+            )
+
+    model.eval()
+
+    print("-" * 45)
+    print("Training completed!")
+
+    return {
+        "model": model,
+        "tokenizer": tokenizer,
+        "loss_history": loss_history,
+        "initial_loss": loss_history[0],
+        "final_loss": loss_history[-1],
+        "vocab_size": vocab_size,
+        "block_size": block_size,
+        "embedding_dim": embedding_dim
+    }
+
 
 
 # --- Milestone 5: Implement text generation, allowing users to input a prompt and get completions.
