@@ -527,10 +527,162 @@ def milestone_4(epochs=30, learning_rate=0.003,
 
 
 
-# --- Milestone 5: Implement text generation, allowing users to input a prompt and get completions.
-# Hint: Text generation with sampling
-def milestone_5():  # TODO(milestone 5)
-    raise NotImplementedError("TODO(milestone 5)")
+
+def milestone_5(prompt="machine learning is",
+                max_new_tokens=30,
+                temperature=0.8,
+                checkpoint_path="checkpoints/tiny_gpt.pt",
+                train_if_missing=True,
+                epochs=30):
+    """
+    Generate text using a trained GPT model.
+    Save and load model checkpoints.
+    """
+    from pathlib import Path
+    import torch
+
+    if not isinstance(prompt, str) or not prompt.strip():
+        raise ValueError("Prompt cannot be empty")
+
+    if not isinstance(max_new_tokens, int) or max_new_tokens < 1:
+        raise ValueError("max_new_tokens must be positive")
+
+    if temperature <= 0:
+        raise ValueError("temperature must be positive")
+
+    checkpoint = Path(checkpoint_path)
+
+    # Configuration must match the training model.
+    config = {
+        "block_size": 16,
+        "embedding_dim": 32,
+        "num_heads": 4,
+        "batch_size": 8,
+        "learning_rate": 0.003
+    }
+
+    if checkpoint.exists():
+        print("Loading saved GPT checkpoint...")
+
+        saved = torch.load(
+            checkpoint,
+            map_location="cpu",
+            weights_only=True
+        )
+
+        config = saved["config"]
+
+        # Reconstruct the same architecture.
+        # One initialization step is used because
+        # milestone_4 currently builds the model
+        # inside its training function.
+        result = milestone_4(
+            epochs=1,
+            **config
+        )
+
+        model = result["model"]
+        model.load_state_dict(saved["model_state_dict"])
+
+        tokenizer = result["tokenizer"]
+
+        print("Checkpoint loaded successfully!")
+
+    else:
+        if not train_if_missing:
+            raise FileNotFoundError(
+                f"Checkpoint not found: {checkpoint}"
+            )
+
+        print("No checkpoint found. Training model...")
+
+        result = milestone_4(
+            epochs=epochs,
+            **config
+        )
+
+        model = result["model"]
+        tokenizer = result["tokenizer"]
+
+        checkpoint.parent.mkdir(
+            parents=True,
+            exist_ok=True
+        )
+
+        torch.save({
+            "model_state_dict": model.state_dict(),
+            "config": config
+        }, checkpoint)
+
+        print(f"Checkpoint saved to: {checkpoint}")
+
+    model.eval()
+
+    # Encode the student prompt
+    token_ids = tokenizer["encode"](prompt)
+
+    if not token_ids:
+        raise ValueError("Prompt produced no tokens")
+
+    generated = torch.tensor(
+        [token_ids],
+        dtype=torch.long
+    )
+
+    # Generate one token at a time
+    with torch.no_grad():
+        for _ in range(max_new_tokens):
+
+            # Keep only the latest context window
+            context = generated[
+                :, -config["block_size"]:
+            ]
+
+            logits, _ = model(context)
+
+            # Take logits for the next token
+            next_logits = logits[:, -1, :]
+
+            # Apply temperature
+            next_logits = next_logits / temperature
+
+            probabilities = torch.softmax(
+                next_logits,
+                dim=-1
+            )
+
+            next_token = torch.multinomial(
+                probabilities,
+                num_samples=1
+            )
+
+            generated = torch.cat(
+                [generated, next_token],
+                dim=1
+            )
+
+    # Decode generated token IDs
+    # Use replacement for incomplete UTF-8 sequences.
+    generated_ids = generated[0].tolist()
+
+    raw_bytes = b"".join(
+        tokenizer["vocab"][token_id]
+        for token_id in generated_ids
+    )
+
+    generated_text = raw_bytes.decode(
+        "utf-8",
+        errors="replace"
+    )
+
+    return {
+        "prompt": prompt,
+        "generated_text": generated_text,
+        "generated_token_ids": generated_ids,
+        "checkpoint_path": str(checkpoint),
+        "temperature": temperature
+    }
+
 
 
 # --- Milestone 6: Create a simple CLI interface for interacting with the AI tutor.

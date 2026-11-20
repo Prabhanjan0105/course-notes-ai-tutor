@@ -273,10 +273,65 @@ def test_milestone_4():
 
 
 
-# Milestone 5: Implement text generation, allowing users to input a prompt and get completions.
-@pytest.mark.skip(reason="remove this line when you start milestone 5")
-def test_milestone_5():
-    raise NotImplementedError("write the test for milestone 5")
+
+# Milestone 5: Generate text and save checkpoints
+def test_milestone_5(tmp_path):
+    import pytest
+    from app.core import milestone_5
+
+    checkpoint = tmp_path / "tiny_gpt.pt"
+
+    # Train and generate text
+    result = milestone_5(
+        prompt="machine learning is",
+        max_new_tokens=5,
+        temperature=0.8,
+        checkpoint_path=str(checkpoint),
+        epochs=3
+    )
+
+    assert isinstance(result, dict)
+    assert checkpoint.exists()
+
+    assert "generated_text" in result
+    assert "generated_token_ids" in result
+
+    assert result["generated_text"].startswith(
+        "machine learning is"
+    )
+
+    # Generated IDs include the original prompt
+    assert len(result["generated_token_ids"]) > 5
+
+    # Load the existing checkpoint
+    loaded = milestone_5(
+        prompt="artificial intelligence",
+        max_new_tokens=3,
+        checkpoint_path=str(checkpoint),
+        train_if_missing=False
+    )
+
+    assert loaded["generated_text"].startswith(
+        "artificial intelligence"
+    )
+
+    # Validate incorrect input
+    with pytest.raises(ValueError):
+        milestone_5(prompt="")
+
+    with pytest.raises(ValueError):
+        milestone_5(max_new_tokens=0)
+
+    with pytest.raises(ValueError):
+        milestone_5(temperature=0)
+
+    with pytest.raises(FileNotFoundError):
+        milestone_5(
+            checkpoint_path=str(
+                tmp_path / "missing.pt"
+            ),
+            train_if_missing=False
+        )
 
 
 # Milestone 6: Create a simple CLI interface for interacting with the AI tutor.
